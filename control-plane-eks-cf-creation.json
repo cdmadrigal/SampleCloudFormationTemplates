@@ -1,0 +1,205 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This template creates the EKS control plane. Authored by: Cris Madrigal. Contact cris.madrigal@venafi.com with any questions.",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "EKS Cluster Setup"
+                    },
+                    "Parameters": [
+                        "ClusterName",
+                        "Version",
+                        "SecurityGroupID"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "VPC Network Configuration"
+                    },
+                    "Parameters": [
+                        "VpcId",
+                        "VpcBlock",
+                        "PublicSubnet01ID",
+                        "PublicSubnet02ID",
+                        "PrivateSubnet01ID",
+                        "PrivateSubnet02ID"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "ClusterName": {
+                    "default": "EKS Cluster Name: "
+                },
+                "Version": {
+                    "default": "EKS Cluster Version: "
+                },
+                "SecurityGroupID": {
+                    "default": "ID of security group used for control plane communication: "
+                },
+                "VpcId": {
+                    "default": "ID of VPC: "
+                },
+                "VpcBlock": {
+                    "default": "VPC CIDR Block"
+                },
+                "PublicSubnet01ID": {
+                    "default": "Public CIDR Block 1 ID:"
+                },
+                "PublicSubnet02ID": {
+                    "default": "Public CIDR Block 2 ID:"
+                },
+                "PrivateSubnet01ID": {
+                    "default": "Private CIDR Block 1 ID:"
+                },
+                "PrivateSubnet02ID": {
+                    "default": "Private CIDR Block 2 ID:"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "ClusterName": {
+            "Type": "String",
+            "Description": "Set the name of your EKS Cluster."
+        },
+        "Version": {
+            "Type": "String",
+            "Default": "1.14",
+            "Description": "Version of your EKS Cluster",
+            "ConstraintDescription": "Version number must be: 1.12, 1.13 or 1.14. The default is 1.14.",
+            "AllowedValues": [
+                "1.12",
+                "1.13",
+                "1.14"
+            ]
+        },
+        "SecurityGroupID": {
+            "Type": "AWS::EC2::SecurityGroup::Id",
+            "Description": "ID of existing security group for control plane."
+        },
+        "VpcId": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Description": "ID of your existing VPC"
+        },
+        "VpcBlock": {
+            "Type": "String",
+            "Default": "192.168.0.0/16",
+            "Description": "The CIDR range for the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "PublicSubnet01ID": {
+            "Description": "ID of public subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PublicSubnet02ID": {
+            "Description": "ID of public subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PrivateSubnet01ID": {
+            "Description": "ID of private subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PrivateSubnet02ID": {
+            "Description": "ID of private subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        }
+    },
+    "Rules": {
+        "SubnetsInVPC": {
+            "Assertions": [
+                {
+                    "Assert": {
+                        "Fn::EachMemberIn": [
+                            {
+                                "Fn::ValueOfAll": [
+                                    "AWS::EC2::Subnet::Id",
+                                    "VpcId"
+                                ]
+                            },
+                            {
+                                "Fn::RefAll": "AWS::EC2::VPC::Id"
+                            }
+                        ]
+                    },
+                    "AssertDescription": "All subnets must be in the VPC"
+                }
+            ]
+        }
+    },
+    "Resources": {
+        "EKSServiceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "Path": "/",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "eks.amazonaws.com"
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                            
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
+                    "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+                ]
+            }
+        },
+        "EKSControlPlane": {
+            "Type": "AWS::EKS::Cluster",
+            "Properties": {
+                "Name": {
+                    "Ref": "ClusterName"
+                },
+                "Version": {
+                    "Ref": "Version"
+                },
+                "RoleArn": {
+                    "Fn::GetAtt": [
+                        "EKSServiceRole",
+                        "Arn"
+                    ]
+                },
+                "ResourcesVpcConfig": {
+                    "SecurityGroupIds": [
+                        {
+                            "Ref": "SecurityGroupID"
+                        }
+                    ],
+                    "SubnetIds": [
+                        {
+                            "Ref": "PublicSubnet01ID"
+                        },
+                        {
+                            "Ref": "PublicSubnet02ID"
+                        },
+                        {
+                            "Ref": "PrivateSubnet01ID"
+                        },
+                        {
+                            "Ref": "PrivateSubnet02ID"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "ClusterName": {
+            "Description": "Name of EKS Cluster",
+            "Value": {
+                "Ref": "ClusterName"
+            }
+        }
+    }
+}

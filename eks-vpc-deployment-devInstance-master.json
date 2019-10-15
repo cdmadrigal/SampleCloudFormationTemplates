@@ -1,0 +1,1021 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This CloudFormation template takes about 20 minutes to create a new VPC with 2 public and 2 private subnets, an EKS control plane and EKS nodes. This deployment is meant of demos, POC, Dev or testing environments. This template is not suitable for production environments. Authored by: Cris Madrigal. Contact cris.madrigal@venafi.com with any questions.",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Network Configuration"
+                    },
+                    "Parameters": [
+                        "VpcBlock",
+                        "PublicSubnet01Block",
+                        "PublicSubnet02Block",
+                        "PrivateSubnet01Block",
+                        "PrivateSubnet02Block",
+                        "IngressLocation"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "EKS Cluster Setup"
+                    },
+                    "Parameters": [
+                        "ClusterName",
+                        "Version"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Worker Node Configuration"
+                    },
+                    "Parameters": [
+                        "NodeGroupName",
+                        "NodeAutoScalingGroupMinSize",
+                        "NodeAutoScalingGroupDesiredCapacity",
+                        "NodeAutoScalingGroupMaxSize",
+                        "NodeInstanceType",
+                        "NodeImageIdSSMParam",
+                        "NodeImageId",
+                        "NodeVolumeSize",
+                        "KeyName",
+                        "BootstrapArguments"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Amazon Linux 2 - EC2 configuration"
+                    },
+                    "Parameters": [
+                        "InstanceType",
+                        "VolSize",
+                        "LatestAmiId",
+                        "CloudFormationUserRole"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "VpcBlock": {
+                    "default": "VPC CIDR Block"
+                },
+                "PublicSubnet01Block": {
+                    "default": "Public CIDR Block 1:"
+                },
+                "PublicSubnet02Block": {
+                    "default": "Public CIDR Block 2:"
+                },
+                "PrivateSubnet01Block": {
+                    "default": "Private CIDR Block 1:"
+                },
+                "PrivateSubnet02Block": {
+                    "default": "Private CIDR Block 2:"
+                },
+                "IngressLocation": {
+                    "default": "Ip or CIDR ingress location"
+                },
+                "ClusterName": {
+                    "default": "EKS Cluster Name:"
+                },
+                "Version": {
+                    "default": "EKS Cluster Version:"
+                },
+                "NodeGroupName": {
+                    "default": "Unique identifier for the node group:"
+                },
+                "NodeAutoScalingGroupMinSize": {
+                    "default": "Minimum size of Node Group ASG:"
+                },
+                "NodeAutoScalingGroupDesiredCapacity": {
+                    "default": "Desired capacity of Node Group ASG:"
+                },
+                "NodeAutoScalingGroupMaxSize": {
+                    "default": "Maximum size of Node Group ASG. Set to at least 1 greater than NodeAutoScalingDesiredCapacity:"
+                },
+                "NodeInstanceType": {
+                    "default": "EC2 instance type for the node instance:"
+                },
+                "NodeImageIdSSMParam": {
+                    "default": "AWS Systems Manager Parameter Store parameter of the AMI ID for the worker node instance:"
+                },
+                "NodeImageId": {
+                    "default": "(Optional) Specify your own custom image ID. This value overrides as AWS Systems Manager Parameter Store value specified above."
+                },
+                "NodeVolumeSize": {
+                    "default": "Node volume size:"
+                },
+                "KeyName": {
+                    "default": "The EC2 Key Pair to allow SSH access to the instances:"
+                },
+                "BootstrapArguments": {
+                    "default": "Arguments to pass to the bootstrap script:"
+                },
+                "InstanceType": {
+                    "default": "Amazon Linux 2 EC2 instance type: "
+                },
+                "VolSize": {
+                    "default": "EC2 instance volume size: "
+                },
+                "LatestAmiId": {
+                    "default": "Id of latest Amazon Linux 2 instance"
+                },
+                "CloudFormationUserRole": {
+                    "default": "CloudFormation Service Role. Used for stack deployment and configuration development instance deployed."
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "VpcBlock": {
+            "Type": "String",
+            "Default": "192.168.0.0/16",
+            "Description": "The CIDR range for the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "PublicSubnet01Block": {
+            "Type": "String",
+            "Default": "192.168.0.0/18",
+            "Description": "CIDRBlock for public subnet 01 within the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "PublicSubnet02Block": {
+            "Type": "String",
+            "Default": "192.168.64.0/18",
+            "Description": "CIDRBlock for public subnet 02 within the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "PrivateSubnet01Block": {
+            "Type": "String",
+            "Default": "192.168.128.0/18",
+            "Description": "CIDRBlock for private subnet 01 within the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "PrivateSubnet02Block": {
+            "Type": "String",
+            "Default": "192.168.192.0/18",
+            "Description": "CIDRBlock for private subnet 02 within the VPC",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+        },
+        "IngressLocation": {
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "Must be a valid IP CIDR range of the form x.x.x.x/x",
+            "Description": "CIDR block (IP address range). Use 0.0.0.0/0 to allow access from all locations. Ideally, set this to your personal IP address. You can always manually change this later if needed.",
+            "MaxLength": "18",
+            "MinLength": "9",
+            "Type": "String"
+        },
+        "ClusterName": {
+            "Type": "String",
+            "Description": "Set the name of your EKS Cluster."
+        },
+        "Version": {
+            "Type": "String",
+            "Default": "1.14",
+            "Description": "Version of your EKS Cluster",
+            "ConstraintDescription": "Version number must be: 1.12, 1.13 or 1.14. The default is 1.14.",
+            "AllowedValues": [
+                "1.12",
+                "1.13",
+                "1.14"
+            ]
+        },
+        "NodeGroupName": {
+            "Type": "String",
+            "Description": "Unique identifier for the Node Group."
+        },
+        "NodeAutoScalingGroupMinSize": {
+            "Type": "Number",
+            "Default": 2,
+            "Description": "Minimum size of Node Group ASG."
+        },
+        "NodeAutoScalingGroupDesiredCapacity": {
+            "Type": "Number",
+            "Default": 2,
+            "Description": "Desired capacity of Node Group ASG."
+        },
+        "NodeAutoScalingGroupMaxSize": {
+            "Type": "Number",
+            "Default": 4,
+            "Description": "Maximum size of Node Group ASG. Set to at least 1 greater than NodeAutoScalingGroupDesiredCapacity."
+        },
+        "NodeInstanceType": {
+            "Type": "String",
+            "Default": "t3.medium",
+            "AllowedValues": [
+                "a1.medium",
+                "a1.large",
+                "a1.xlarge",
+                "a1.2xlarge",
+                "a1.4xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "c5.large",
+                "c5.xlarge",
+                "c5.2xlarge",
+                "c5.4xlarge",
+                "c5.9xlarge",
+                "c5.12xlarge",
+                "c5.18xlarge",
+                "c5.24xlarge",
+                "c5.metal",
+                "c5d.large",
+                "c5d.xlarge",
+                "c5d.2xlarge",
+                "c5d.4xlarge",
+                "c5d.9xlarge",
+                "c5d.18xlarge",
+                "c5n.large",
+                "c5n.xlarge",
+                "c5n.2xlarge",
+                "c5n.4xlarge",
+                "c5n.9xlarge",
+                "c5n.18xlarge",
+                "cc2.8xlarge",
+                "cr1.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "f1.2xlarge",
+                "f1.4xlarge",
+                "f1.16xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "g3s.xlarge",
+                "g3.4xlarge",
+                "g3.8xlarge",
+                "g3.16xlarge",
+                "h1.2xlarge",
+                "h1.4xlarge",
+                "h1.8xlarge",
+                "h1.16xlarge",
+                "hs1.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "i3.large",
+                "i3.xlarge",
+                "i3.2xlarge",
+                "i3.4xlarge",
+                "i3.8xlarge",
+                "i3.16xlarge",
+                "i3.metal",
+                "i3en.large",
+                "i3en.xlarge",
+                "i3en.2xlarge",
+                "i3en.3xlarge",
+                "i3en.6xlarge",
+                "i3en.12xlarge",
+                "i3en.24xlarge",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "m4.16xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "m5.4xlarge",
+                "m5.8xlarge",
+                "m5.12xlarge",
+                "m5.16xlarge",
+                "m5.24xlarge",
+                "m5.metal",
+                "m5a.large",
+                "m5a.xlarge",
+                "m5a.2xlarge",
+                "m5a.4xlarge",
+                "m5a.8xlarge",
+                "m5a.12xlarge",
+                "m5a.16xlarge",
+                "m5a.24xlarge",
+                "m5ad.large",
+                "m5ad.xlarge",
+                "m5ad.2xlarge",
+                "m5ad.4xlarge",
+                "m5ad.12xlarge",
+                "m5ad.24xlarge",
+                "m5d.large",
+                "m5d.xlarge",
+                "m5d.2xlarge",
+                "m5d.4xlarge",
+                "m5d.8xlarge",
+                "m5d.12xlarge",
+                "m5d.16xlarge",
+                "m5d.24xlarge",
+                "m5d.metal",
+                "p2.xlarge",
+                "p2.8xlarge",
+                "p2.16xlarge",
+                "p3.2xlarge",
+                "p3.8xlarge",
+                "p3.16xlarge",
+                "p3dn.24xlarge",
+                "g4dn.xlarge",
+                "g4dn.2xlarge",
+                "g4dn.4xlarge",
+                "g4dn.8xlarge",
+                "g4dn.12xlarge",
+                "g4dn.16xlarge",
+                "g4dn.metal",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "r4.large",
+                "r4.xlarge",
+                "r4.2xlarge",
+                "r4.4xlarge",
+                "r4.8xlarge",
+                "r4.16xlarge",
+                "r5.large",
+                "r5.xlarge",
+                "r5.2xlarge",
+                "r5.4xlarge",
+                "r5.8xlarge",
+                "r5.12xlarge",
+                "r5.16xlarge",
+                "r5.24xlarge",
+                "r5.metal",
+                "r5a.large",
+                "r5a.xlarge",
+                "r5a.2xlarge",
+                "r5a.4xlarge",
+                "r5a.8xlarge",
+                "r5a.12xlarge",
+                "r5a.16xlarge",
+                "r5a.24xlarge",
+                "r5ad.large",
+                "r5ad.xlarge",
+                "r5ad.2xlarge",
+                "r5ad.4xlarge",
+                "r5ad.12xlarge",
+                "r5ad.24xlarge",
+                "r5d.large",
+                "r5d.xlarge",
+                "r5d.2xlarge",
+                "r5d.4xlarge",
+                "r5d.8xlarge",
+                "r5d.12xlarge",
+                "r5d.16xlarge",
+                "r5d.24xlarge",
+                "r5d.metal",
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "t2.xlarge",
+                "t2.2xlarge",
+                "t3.nano",
+                "t3.micro",
+                "t3.small",
+                "t3.medium",
+                "t3.large",
+                "t3.xlarge",
+                "t3.2xlarge",
+                "t3a.nano",
+                "t3a.micro",
+                "t3a.small",
+                "t3a.medium",
+                "t3a.large",
+                "t3a.xlarge",
+                "t3a.2xlarge",
+                "u-6tb1.metal",
+                "u-9tb1.metal",
+                "u-12tb1.metal",
+                "x1.16xlarge",
+                "x1.32xlarge",
+                "x1e.xlarge",
+                "x1e.2xlarge",
+                "x1e.4xlarge",
+                "x1e.8xlarge",
+                "x1e.16xlarge",
+                "x1e.32xlarge",
+                "z1d.large",
+                "z1d.xlarge",
+                "z1d.2xlarge",
+                "z1d.3xlarge",
+                "z1d.6xlarge",
+                "z1d.12xlarge",
+                "z1d.metal"
+            ],
+            "ConstraintDescription": "Must be a valid EC2 instance type",
+            "Description": "EC2 instance type for the node instances"
+        },
+        "NodeImageIdSSMParam": {
+            "Type": "String",
+            "Default": "/aws/service/eks/optimized-ami/1.14/amazon-linux-2/recommended/image_id",
+            "Description": "AWS Systems Manager Parameter Store parameter of the AMI ID for the worker node instances. Default is set for Kubernetes 1.14."
+        },
+        "NodeImageId": {
+            "Type": "String",
+            "Default": "",
+            "Description": "(Optional) Specify your own custom image ID. This value overrides any AWS Systems Manager Parameter Store value specified above."
+        },
+        "NodeVolumeSize": {
+            "Type": "Number",
+            "Default": 20,
+            "Description": "Node volume size"
+        },
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "The EC2 Key Pair to allow SSH access to the instances"
+        },
+        "BootstrapArguments": {
+            "Type": "String",
+            "Default": "",
+            "Description": "Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami"
+        },
+        "InstanceType": {
+            "Type": "String",
+            "Default": "t3.medium",
+            "AllowedValues": [
+                "a1.medium",
+                "a1.large",
+                "a1.xlarge",
+                "a1.2xlarge",
+                "a1.4xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "c5.large",
+                "c5.xlarge",
+                "c5.2xlarge",
+                "c5.4xlarge",
+                "c5.9xlarge",
+                "c5.12xlarge",
+                "c5.18xlarge",
+                "c5.24xlarge",
+                "c5.metal",
+                "c5d.large",
+                "c5d.xlarge",
+                "c5d.2xlarge",
+                "c5d.4xlarge",
+                "c5d.9xlarge",
+                "c5d.18xlarge",
+                "c5n.large",
+                "c5n.xlarge",
+                "c5n.2xlarge",
+                "c5n.4xlarge",
+                "c5n.9xlarge",
+                "c5n.18xlarge",
+                "cc2.8xlarge",
+                "cr1.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "f1.2xlarge",
+                "f1.4xlarge",
+                "f1.16xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "g3s.xlarge",
+                "g3.4xlarge",
+                "g3.8xlarge",
+                "g3.16xlarge",
+                "h1.2xlarge",
+                "h1.4xlarge",
+                "h1.8xlarge",
+                "h1.16xlarge",
+                "hs1.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "i3.large",
+                "i3.xlarge",
+                "i3.2xlarge",
+                "i3.4xlarge",
+                "i3.8xlarge",
+                "i3.16xlarge",
+                "i3.metal",
+                "i3en.large",
+                "i3en.xlarge",
+                "i3en.2xlarge",
+                "i3en.3xlarge",
+                "i3en.6xlarge",
+                "i3en.12xlarge",
+                "i3en.24xlarge",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "m4.16xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "m5.4xlarge",
+                "m5.8xlarge",
+                "m5.12xlarge",
+                "m5.16xlarge",
+                "m5.24xlarge",
+                "m5.metal",
+                "m5a.large",
+                "m5a.xlarge",
+                "m5a.2xlarge",
+                "m5a.4xlarge",
+                "m5a.8xlarge",
+                "m5a.12xlarge",
+                "m5a.16xlarge",
+                "m5a.24xlarge",
+                "m5ad.large",
+                "m5ad.xlarge",
+                "m5ad.2xlarge",
+                "m5ad.4xlarge",
+                "m5ad.12xlarge",
+                "m5ad.24xlarge",
+                "m5d.large",
+                "m5d.xlarge",
+                "m5d.2xlarge",
+                "m5d.4xlarge",
+                "m5d.8xlarge",
+                "m5d.12xlarge",
+                "m5d.16xlarge",
+                "m5d.24xlarge",
+                "m5d.metal",
+                "p2.xlarge",
+                "p2.8xlarge",
+                "p2.16xlarge",
+                "p3.2xlarge",
+                "p3.8xlarge",
+                "p3.16xlarge",
+                "p3dn.24xlarge",
+                "g4dn.xlarge",
+                "g4dn.2xlarge",
+                "g4dn.4xlarge",
+                "g4dn.8xlarge",
+                "g4dn.12xlarge",
+                "g4dn.16xlarge",
+                "g4dn.metal",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "r4.large",
+                "r4.xlarge",
+                "r4.2xlarge",
+                "r4.4xlarge",
+                "r4.8xlarge",
+                "r4.16xlarge",
+                "r5.large",
+                "r5.xlarge",
+                "r5.2xlarge",
+                "r5.4xlarge",
+                "r5.8xlarge",
+                "r5.12xlarge",
+                "r5.16xlarge",
+                "r5.24xlarge",
+                "r5.metal",
+                "r5a.large",
+                "r5a.xlarge",
+                "r5a.2xlarge",
+                "r5a.4xlarge",
+                "r5a.8xlarge",
+                "r5a.12xlarge",
+                "r5a.16xlarge",
+                "r5a.24xlarge",
+                "r5ad.large",
+                "r5ad.xlarge",
+                "r5ad.2xlarge",
+                "r5ad.4xlarge",
+                "r5ad.12xlarge",
+                "r5ad.24xlarge",
+                "r5d.large",
+                "r5d.xlarge",
+                "r5d.2xlarge",
+                "r5d.4xlarge",
+                "r5d.8xlarge",
+                "r5d.12xlarge",
+                "r5d.16xlarge",
+                "r5d.24xlarge",
+                "r5d.metal",
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "t2.xlarge",
+                "t2.2xlarge",
+                "t3.nano",
+                "t3.micro",
+                "t3.small",
+                "t3.medium",
+                "t3.large",
+                "t3.xlarge",
+                "t3.2xlarge",
+                "t3a.nano",
+                "t3a.micro",
+                "t3a.small",
+                "t3a.medium",
+                "t3a.large",
+                "t3a.xlarge",
+                "t3a.2xlarge",
+                "u-6tb1.metal",
+                "u-9tb1.metal",
+                "u-12tb1.metal",
+                "x1.16xlarge",
+                "x1.32xlarge",
+                "x1e.xlarge",
+                "x1e.2xlarge",
+                "x1e.4xlarge",
+                "x1e.8xlarge",
+                "x1e.16xlarge",
+                "x1e.32xlarge",
+                "z1d.large",
+                "z1d.xlarge",
+                "z1d.2xlarge",
+                "z1d.3xlarge",
+                "z1d.6xlarge",
+                "z1d.12xlarge",
+                "z1d.metal"
+            ],
+            "ConstraintDescription": "Must be a valid EC2 instance type",
+            "Description": "EC2 instance type for the Amazon Linux instances"
+        },
+        "VolSize": {
+            "Type": "Number",
+            "Default": 25,
+            "MinValue": 20,
+            "MaxValue": 16384,
+            "Description": "Volume Size (GB) for Amazon linux instance.",
+            "ConstraintDescription": "Volume size must be numeric and between 20 and 16384"
+        },
+        "LatestAmiId": {
+            "Type": "String",
+            "Default": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2",
+            "Description": "Pulls the latest Amazon Linux 2 AMI."
+        },
+        "CloudFormationUserRole": {
+            "Type": "String",
+            "Description": "Existing CloudFormation Service Role. This role is needed to create the ec2 development instance properly."
+        }
+    },
+    "Conditions": {
+        "HasNodeImageId": {
+            "Fn::Not": [
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "NodeImageId"
+                        },
+                        ""
+                    ]
+                }
+            ]
+        }
+    },
+    "Resources": {
+        "VPCStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": "https://amazon-eks.s3-us-west-2.amazonaws.com/cloudformation/2019-09-27/amazon-eks-vpc-private-subnets.yaml",
+                "Parameters": {
+                    "VpcBlock": {
+                        "Ref": "VpcBlock"
+                    },
+                    "PublicSubnet01Block": {
+                        "Ref": "PublicSubnet01Block"
+                    },
+                    "PublicSubnet02Block": {
+                        "Ref": "PublicSubnet02Block"
+                    },
+                    "PrivateSubnet01Block": {
+                        "Ref": "PrivateSubnet01Block"
+                    },
+                    "PrivateSubnet02Block": {
+                        "Ref": "PrivateSubnet02Block"
+                    }
+                }
+            }
+        },
+        "EKSStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": "https://sample-cris-bucket789.s3.amazonaws.com/control-plane-eks-cf.json",
+                "Parameters": {
+                    "ClusterName": {
+                        "Ref": "ClusterName"
+                    },
+                    "Version": {
+                        "Ref": "Version"
+                    },
+                    "SecurityGroupID": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.SecurityGroups"
+                        ]
+                    },
+                    "VpcId": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.VpcId"
+                        ]
+                    },
+                    "VpcBlock": {
+                        "Ref": "VpcBlock"
+                    },
+                    "PublicSubnet01ID": {
+                        "Fn::Select": [
+                            "0",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "PublicSubnet02ID": {
+                        "Fn::Select": [
+                            "1",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "PrivateSubnet01ID": {
+                        "Fn::Select": [
+                            "2",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "PrivateSubnet02ID": {
+                        "Fn::Select": [
+                            "3",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        "NodeStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": [
+                "VPCStack",
+                "EKSStack"
+            ],
+            "Properties": {
+                "TemplateURL": "https://amazon-eks.s3-us-west-2.amazonaws.com/cloudformation/2019-09-27/amazon-eks-nodegroup.yaml",
+                "Parameters": {
+                    "ClusterName": {
+                        "Fn::GetAtt": [
+                            "EKSStack",
+                            "Outputs.ClusterName"
+                        ]
+                    },
+                    "ClusterControlPlaneSecurityGroup": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.SecurityGroups"
+                        ]
+                    },
+                    "NodeGroupName": {
+                        "Ref": "NodeGroupName"
+                    },
+                    "NodeAutoScalingGroupMinSize": {
+                        "Ref": "NodeAutoScalingGroupMinSize"
+                    },
+                    "NodeAutoScalingGroupDesiredCapacity": {
+                        "Ref": "NodeAutoScalingGroupDesiredCapacity"
+                    },
+                    "NodeAutoScalingGroupMaxSize": {
+                        "Ref": "NodeAutoScalingGroupMaxSize"
+                    },
+                    "NodeInstanceType": {
+                        "Ref": "NodeInstanceType"
+                    },
+                    "NodeImageIdSSMParam": {
+                        "Ref": "NodeImageIdSSMParam"
+                    },
+                    "NodeImageId": {
+                        "Ref": "NodeImageId"
+                    },
+                    "NodeVolumeSize": {
+                        "Ref": "NodeVolumeSize"
+                    },
+                    "KeyName": {
+                        "Ref": "KeyName"
+                    },
+                    "BootstrapArguments": {
+                        "Ref": "BootstrapArguments"
+                    },
+                    "VpcId": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.VpcId"
+                        ]
+                    },
+                    "Subnets": {
+                        "Fn::Join": [
+                            ",",
+                            [
+                                {
+                                    "Fn::Select": [
+                                        "2",
+                                        {
+                                            "Fn::Split": [
+                                                ",",
+                                                {
+                                                    "Fn::GetAtt": [
+                                                        "VPCStack",
+                                                        "Outputs.SubnetIds"
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Fn::Select": [
+                                        "3",
+                                        {
+                                            "Fn::Split": [
+                                                ",",
+                                                {
+                                                    "Fn::GetAtt": [
+                                                        "VPCStack",
+                                                        "Outputs.SubnetIds"
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "DevInstanceStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": [
+                "VPCStack",
+                "EKSStack",
+                "NodeStack"
+            ],
+            "Properties": {
+                "TemplateURL": "",
+                "Parameters": {
+                    "VpcId": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.VpcId"
+                        ]
+                    },
+                    "PublicSubnet01ID": {
+                        "Fn::Select": [
+                            "0",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "PublicSubnet02ID": {
+                        "Fn::Select": [
+                            "1",
+                            {
+                                "Fn::Split": [
+                                    ",",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "VPCStack",
+                                            "Outputs.SubnetIds"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "IngressLocation": {
+                        "Ref": "IngressLocation"
+                    },
+                    "InstanceType": {
+                        "Ref": "InstanceType"
+                    },
+                    "VolSize": {
+                        "Ref": "VolSize"
+                    },
+                    "KeyName": {
+                        "Ref": "KeyName"
+                    },
+                    "LatestAmiId": {
+                        "Ref": "LatestAmiId"
+                    },
+                    "NodeInstanceRole": {
+                        "Fn::GetAtt": [
+                            "NodeStack",
+                            "Outputs.NodeInstanceRole"
+                        ]
+                    },
+                    "CloudFormationUserRole": {
+                        "Ref": "CloudFormationUserRole"
+                    },
+                    "EKSClusterName": {
+                        "Fn::GetAtt": [
+                            "EKSStack",
+                            "Outputs.ClusterName"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
