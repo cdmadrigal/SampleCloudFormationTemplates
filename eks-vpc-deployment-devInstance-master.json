@@ -944,7 +944,7 @@
                 "NodeStack"
             ],
             "Properties": {
-                "TemplateURL": "",
+                "TemplateURL": "https://sample-cris-bucket789.s3.amazonaws.com/dev-jenkins-gogs-kubernetes_v1.json",
                 "Parameters": {
                     "VpcId": {
                         "Fn::GetAtt": [
