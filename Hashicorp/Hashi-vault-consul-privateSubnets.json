@@ -591,6 +591,14 @@
                         "FromPort": "8200",
                         "ToPort": "8200",
                         "CidrIp": {
+                            "Ref": "VpcCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8200",
+                        "ToPort": "8200",
+                        "CidrIp": {
                             "Ref": "IngressLocation"
                         }
                     }
