@@ -597,6 +597,24 @@
                 ]
             }
         },
+        "VaultEIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "InstanceId": {
+                    "Ref": "VaultServerInstance"
+                }
+            }
+        },
+        "ConsulEIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "InstanceId": {
+                    "Ref": "ConsulServerInstance"
+                }
+            }
+        },
         "InstanceSSMAccessRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
