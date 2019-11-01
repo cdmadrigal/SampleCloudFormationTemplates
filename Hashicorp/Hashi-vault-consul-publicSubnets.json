@@ -415,6 +415,7 @@
                                 "echo '  \"advertise_addr\": \"'\"$ConsulIP\"'\",' >> consul_s1.json\n",
                                 "echo '  \"bootstrap_expect\": 1,' >> consul_s1.json\n",
                                 "echo '  \"retry_join\": [\"'\"$ConsulIP\"'\"],' >> consul_s1.json\n",
+                                "echo '  \"ui\": true,' >> consul_s1.json\n",
                                 "echo '  \"log_level\": \"DEBUG\",' >> consul_s1.json\n",
                                 "echo '  \"enable_syslog\": true,' >> consul_s1.json\n",
                                 "echo '  \"acl_enforce_version_8\": false' >> consul_s1.json\n",
@@ -527,7 +528,6 @@
                                 "systemctl daemon-reload\n",
                                 "systemctl start vault\n",
                                 "vault operator init > /etc/vault/initialVaultSetup.txt\n",
-                                "chmod 644 /etc/vault/initialVaultSetup.txt\n",
                                 "echo 'Your initial vault keys were generated and stored in /etc/vault/initialVaultSetup.txt. Please store these in a safe place and delete the text file on the instance.'"
                             ]
                         ]

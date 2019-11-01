@@ -535,7 +535,6 @@
                                 "systemctl daemon-reload\n",
                                 "systemctl start vault\n",
                                 "vault operator init > /etc/vault/initialVaultSetup.txt\n",
-                                "chmod 644 /etc/vault/initialVaultSetup.txt\n",
                                 "echo 'Your initial vault keys were generated and stored in /etc/vault/initialVaultSetup.txt. Please store these in a safe place and delete the text file on the instance.'"
                             ]
                         ]
