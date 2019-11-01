@@ -534,6 +534,7 @@
                                 "export VAULT_ADDR=http://127.0.0.1:8200\n",
                                 "systemctl daemon-reload\n",
                                 "systemctl start vault\n",
+                                "sleep 1m\n",
                                 "vault operator init > /etc/vault/initialVaultSetup.txt\n",
                                 "echo 'Your initial vault keys were generated and stored in /etc/vault/initialVaultSetup.txt. Please store these in a safe place and delete the text file on the instance.'"
                             ]
